@@ -78,7 +78,7 @@
 - Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
 - In case you accidentally killed the monitor, this is the function to restart it. Otherwise it should never be used
 
-Usage:
+## Usage:
 ```py
 from ui_utils import *
 # * wont cause any name missmatch
