@@ -69,7 +69,7 @@
 - Deletes all buffered function calls
 
 ### `get_tick_time() -> float`
-- Returns a really good estimate on the servers tick time (the time between 2 tick)
+- Returns a really good estimate on the servers tick time (the time between two ticks)
 
 ### `get_tps() -> float`
 - Returns a really good estimate of the servers TPS (ticks per second)
