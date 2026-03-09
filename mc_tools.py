@@ -1,8 +1,3 @@
-"""
-Shoutout to ui-utils
-https://github.com/Coderx-Gamer/ui-utils/tree/main
-"""
-
 import sys
 if "Pyjinn" in sys.version: sys.exit("Not pyjinnable")
 
@@ -47,7 +42,6 @@ def close():
     """
     Close the currently open screen without sending a packet to the server.
     Ie, using this to close a screen will make the server think you still have it opened.
-    Same as "close without packet" option in ui-utils
     """
     mc.setScreen(None)
 
@@ -55,7 +49,6 @@ def packet_close():
     """
     Close the currently open screen on the server side.
     Ie, using this to close a screen, will make the server think you closed it, but its still open on your client side.
-    Same as "desync" option in ui-utils
     """
     exec(r"""
     Minecraft = JavaClass("net.minecraft.client.Minecraft")
