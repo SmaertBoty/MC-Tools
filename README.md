@@ -13,7 +13,8 @@
 
 ### `save_screen() -> screen object`
 -  Save a screen, to restore later with `restore_screen`
-### `restore_screen()`
+
+### `restore_screen(screen)`
 - Restore a static screen on the client, using a saved screen from `save_screen`
 
 ### `packet_use(x,y,z,direction="up",hand="main")`
