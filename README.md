@@ -29,9 +29,6 @@
 - direction: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
 - hand: "main" for main hand, "off" for off hand (OPTIONAL, DEFAULTS TO "main")
 
-### `flip_esp()`
-- WIP DO NOT USE
-
 ### `crash()`
 - Performs a graceful crash (saves game before crashing)
 
