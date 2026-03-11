@@ -95,7 +95,6 @@
 ## Usage:
 ```py
 from mc_tools import *
-# * wont cause any name missmatch
 ```
 Note: You can run a function, without having to make a burner script, by appending the function name, and argument when starting the script
 
