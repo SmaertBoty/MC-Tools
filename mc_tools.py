@@ -1,7 +1,7 @@
 import sys
 if "Pyjinn" in sys.version: sys.exit("Not pyjinnable")
 
-from system.lib.minescript import execute, job_info, version_info, log, tick_loop
+from system.lib.minescript import execute, job_info, version_info, log, world_info
 
 version = version_info().minescript
 ver = ""
@@ -32,6 +32,7 @@ path = Path(__file__).parent.resolve() / "tick_time.txt"
 def _log(s):
     log(f"[MCT] {s}")
 
+_exec = exec
 def exec(code):
     if not code.startswith("\n"):
         code = "\n" + code
@@ -215,12 +216,34 @@ def buffer(func,args:tuple):
     global buffer_list
     buffer_list.append((func,args))
 
-def flush_buffer():
+def flush_buffer(leave:bool=False):
     """
     Send all function calls in the buffer, all at once
     """
     for func, args in buffer_list:
         func(*args)
+    if leave: disconnect()
+
+def flush_buffer_in_pyjinn(imports:tuple=(),leave:bool=False):
+    """
+    Send all function calls in the buffer, all at once (ran in pyjinn, usually finishes in the same tick, if the buffer isnt too too large)
+    """
+    code = "\n".join(imports) + "\n" + """Minecraft = JavaClass("net.minecraft.client.Minecraft")\nmc = Minecraft.getInstance()\nComponent = JavaClass("net.minecraft.network.chat.Component")\nmc.getConnection().close()\n""" if leave else ""
+    for func, args in buffer_list:
+        try: func_name = func.__name__
+        except: func_name = func.name
+        out = []
+        for arg in args:
+            if isinstance(arg,str):
+                out.append(f'"{arg}"')
+            else:
+                out.append(arg)
+        args = out
+        code += f"{func_name}({", ".join(args)})\n"
+    code += """mc.player.connection.getConnection().disconnect(Component.translatable("multiplayer.disconnect.generic"))""" if leave else ""
+    exec(fr"""
+    {code}
+    """)
 
 def clear_buffer():
     """
@@ -230,6 +253,25 @@ def clear_buffer():
     buffer_list.clear()
 
 def _monitor_tps():
+    def monitor():
+        global tick_time
+        global session
+        global _time_since_last_tick
+        last_session = session
+        last_session_time = perf_counter()
+        while True:
+            with lock:
+                with open(path,"r") as f:
+                    try: 
+                        extracted = str(f.read())
+                        tick_time = float(extracted[1:])
+                        session = int(extracted[0])
+                    except: pass
+                if session != last_session:
+                    last_session = session
+                    last_session_time = perf_counter()
+                _time_since_last_tick = perf_counter() - last_session_time
+    Thread(target=monitor,daemon=True).start()
     for job in job_info():
         if len(job.command) > 1:
             if job.command[1] == "#TICKTIMESCRIPT":
@@ -268,25 +310,6 @@ def _monitor_tps():
 
     add_event_listener("clientbound_packet", on_clientbound_packet)
     """)
-    def monitor():
-        global tick_time
-        global session
-        global _time_since_last_tick
-        last_session = session
-        last_session_time = perf_counter()
-        while True:
-            with lock:
-                with open(path,"r") as f:
-                    try: 
-                        extracted = str(f.read())
-                        tick_time = float(extracted[1:])
-                        session = int(extracted[0])
-                    except: pass
-                if session != last_session:
-                    last_session = session
-                    last_session_time = perf_counter()
-                _time_since_last_tick = perf_counter() - last_session_time
-    Thread(target=monitor,daemon=True).start()
 _monitor_tps()
 
 def get_tick_time():
@@ -315,7 +338,7 @@ def start_tick_monitor_and_wait():
     if _monitor_tps():
         sleep(1)
 
-def delay(func,args:tuple,by:int,threaded:bool=True):
+def delay(func,args:tuple,by:int,threaded:bool=True,server:bool=True):
     """
     Delay a function call by a given amount of server ticks
     """
@@ -324,14 +347,15 @@ def delay(func,args:tuple,by:int,threaded:bool=True):
         while True:
             if index >= by:
                 func(*args)
+                return
             index += 1
-            sleep(get_tick_time())
+            sleep(get_tick_time() if server and get_tick_time() > 0 else 0.05)
     if threaded:
         Thread(target=_delay,daemon=True).start()
     else:
         _delay()
 
-def swap_to_hotbar(inv_slot:int=0,hotbar_slot:int=0):
+def swap_to_hotbar(inv_slot:int,hotbar_slot:int):
     """
     Reimplements the functionality of player_inventory_slot_to_hotbar
     """
@@ -344,7 +368,21 @@ def swap_to_hotbar(inv_slot:int=0,hotbar_slot:int=0):
     mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, {inv_slot}, {hotbar_slot}, ClickType.SWAP, mc.player)
     """)
 
+def execute_and_leave(command:str):
+    """
+    Execute a command, and leave, on the same tick. 
+    Simply using execute() then disconnect() may end up executing both of them 1 server tick apart
+    """
+    exec(fr"""
+    Minecraft = JavaClass("net.minecraft.client.Minecraft")
+    mc = Minecraft.getInstance()
+    Component = JavaClass("net.minecraft.network.chat.Component")
+    mc.getConnection().close()
+    execute("{command}")
+    mc.player.connection.getConnection().disconnect(Component.translatable("multiplayer.disconnect.generic"))
+    """)
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        args = sys.argv[1:]
-        globals().get(args[0])(*args[1:])
+        args = " ".join(sys.argv[1:]).replace(r"\n","\n")
+        _exec(f"""from mc_tools import *\n{args}""")
