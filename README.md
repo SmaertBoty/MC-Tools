@@ -84,7 +84,7 @@
 - Delays a function call (and makes it be in line with the servers ticks)
 - `func` a callable
 - `args` all arguments as a tuple (or other iterable)
-- `by` the delay in ticks
+- `by` the delay in server ticks
 - `threaded` If True, the delay will happen on a new thread
 
 ### `swap_to_hotbar(inv_slot,hotbar_slot)`
