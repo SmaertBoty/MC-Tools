@@ -75,9 +75,25 @@
 ### `get_tps() -> float`
 - Returns a really good estimate of the servers TPS (ticks per second)
 
+### `time_since_last_tick()`
+- The estimated time since the last server update
+- Normal times are ~1 second, at 20 tps
+
 ### `start_tick_monitor_and_wait()`
 - Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
 - In case you accidentally killed the monitor, this is the function to restart it. Otherwise it should never be used
+
+### `delay(func,args,by,threaded)`
+- Delays a function call (and makes it be in line with the servers ticks)
+- `func` a callable
+- `args` all arguments as a tuple (or other iterable)
+- `by` the delay in ticks
+- `threaded` If True, the delay will happen on a new thread
+
+### `swap_to_hotbar(inv_slot,hotbar_slot)`
+- Reimplements the functionality of `player_inventory_slot_to_hotbar()`
+- `inv_slot`: 9-35
+- `hotbar_slot` 0-8
 
 ## Usage:
 ```py
@@ -94,4 +110,4 @@ Example:
 ```
 
 ## MORE TO COME IN THE FUTURE
-last updated on 09/03/2026
+last updated on 11/03/2026
