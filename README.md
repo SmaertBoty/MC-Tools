@@ -19,15 +19,15 @@
 
 ### `packet_use(x,y,z,direction="up",hand="main")`
 - Do a right click on a block on the server side
-- x, y, z all floats / integers
-- direction: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
-- hand: "main" for main hand, "off" for off hand (OPTIONAL, DEFAULTS TO "main")
+- `x, y, z`: all floats / integers
+- `direction`: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
+- `hand`: "main" for main hand, "off" for off hand (OPTIONAL, DEFAULTS TO "main")
 
 ### `packet_mine(x,y,z,direction="up",hand="main")`
 - Mine a block on the server side (not instant!)
-- x, y, z all floats / integers
-- direction: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
-- hand: "main" for main hand, "off" for off hand (OPTIONAL, DEFAULTS TO "main")
+- `x, y, z`: all floats / integers
+- `direction`: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
+- `hand`: "main" for main hand, "off" for off hand (OPTIONAL, DEFAULTS TO "main")
 
 ### `crash()`
 - Performs a graceful crash (saves game before crashing)
@@ -57,11 +57,18 @@
 
 ### `buffer(func, arg)`
 - Buffer up a lot of function calls
-- `func` a callable
-- `args` all arguments as a tuple (or other iterable)
+- `func`: a callable
+- `args`: all arguments as a tuple (or other iterable)
 
-### `flush_buffer()`
+### `flush_buffer(leave=False)`
 - Execute all function calls buffered up
+- `Leave`: if true, disconnect after flush
+
+### `flush_buffer_in_pyjinn(imports=(),leave=False)`
+- Execute all function calls buffered up
+- Runs in pyjinn, usually finishes in the same tick
+- `Leave`: if true, disconnect after flush
+- `imports`: An iterable, of imports (`"import minescript"`). Needed if the functions in the buffer are not declared in pyjinn already
 
 ### `clear_buffer()`
 - Deletes all buffered function calls
@@ -80,17 +87,22 @@
 - Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
 - In case you accidentally killed the monitor, this is the function to restart it. Otherwise it should never be used
 
-### `delay(func,args,by,threaded)`
-- Delays a function call (and makes it be in line with the servers ticks)
-- `func` a callable
-- `args` all arguments as a tuple (or other iterable)
-- `by` the delay in server ticks
-- `threaded` If True, the delay will happen on a new thread (True by default)
+### `delay(func,args,by,threaded=True,server=True)`
+- Delays a function call
+- `func`: a callable
+- `args`: all arguments as a tuple (or other iterable)
+- `by`: the delay in server ticks
+- `threaded`: If True, the delay will happen on a new thread
+- `server`: If true, delay ticks will be in line with the servers ticks
 
 ### `swap_to_hotbar(inv_slot,hotbar_slot)`
 - Reimplements the functionality of `player_inventory_slot_to_hotbar()`
 - `inv_slot`: 9-35
-- `hotbar_slot` 0-8
+- `hotbar_slot`: 0-8
+
+### `execute_and_leave(command)`
+- Executes a command, and leaves in the same tick
+- `command`: the executed command
 
 ## Usage:
 ```py
@@ -100,9 +112,10 @@ Note: You can run a function, without having to make a burner script, by appendi
 
 Example:
 ```
-\mc_tools packet_mine 0 0 0
+\mc_tools packet_mine(0,0,0)
 # Executes:
 # packet_mine(0,0,0)
+# mc_tools is auto imported (*)
 ```
 
 ## MORE TO COME IN THE FUTURE
