@@ -85,7 +85,7 @@
 - `func` a callable
 - `args` all arguments as a tuple (or other iterable)
 - `by` the delay in server ticks
-- `threaded` If True, the delay will happen on a new thread
+- `threaded` If True, the delay will happen on a new thread (True by default)
 
 ### `swap_to_hotbar(inv_slot,hotbar_slot)`
 - Reimplements the functionality of `player_inventory_slot_to_hotbar()`
