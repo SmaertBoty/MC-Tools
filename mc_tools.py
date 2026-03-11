@@ -1,7 +1,7 @@
 import sys
 if "Pyjinn" in sys.version: sys.exit("Not pyjinnable")
 
-from system.lib.minescript import execute, job_info, version_info, log
+from system.lib.minescript import execute, job_info, version_info, log, tick_loop
 
 version = version_info().minescript
 ver = ""
@@ -11,7 +11,7 @@ for char in version:
 
 if int(ver) < 5011: sys.exit("Please update to 5.0b11")
 
-from system.lib.java import JavaClass, eval_pyjinn_script
+from system.lib.java import JavaClass
 from time import perf_counter, sleep
 from pathlib import Path
 from threading import Thread, Lock
@@ -23,6 +23,8 @@ chat_scale = mc.options.chatScale().get()
 chat_scale = 1.0 if chat_scale == 0 else chat_scale
 buffer_list = []
 tick_time = -1
+session = 0
+_time_since_last_tick = 0
 lock = Lock()
 
 path = Path(__file__).parent.resolve() / "tick_time.txt"
@@ -79,7 +81,6 @@ def packet_use(x,y,z,direction="up",hand="main"):
     Minecraft = JavaClass("net.minecraft.client.Minecraft")
     mc = Minecraft.getInstance()
     ServerboundPlayerActionPacket = JavaClass("net.minecraft.network.protocol.game.ServerboundPlayerActionPacket")
-    ServerboundSwingPacket = JavaClass("net.minecraft.network.protocol.game.ServerboundSwingPacket")
     dir = JavaClass("net.minecraft.core.Direction")
     InteractionHand = JavaClass("net.minecraft.world.InteractionHand")
     x = {x}
@@ -207,7 +208,7 @@ def show_chat():
     """
     mc.options.chatScale().set(chat_scale)
 
-def buffer(func:callable,*args):
+def buffer(func,args:tuple):
     """
     Buffer up function calls
     """
@@ -229,47 +230,62 @@ def clear_buffer():
     buffer_list.clear()
 
 def _monitor_tps():
-    global tick_time
     for job in job_info():
         if len(job.command) > 1:
             if job.command[1] == "#TICKTIMESCRIPT":
                 _log("Joining already existing tick monitor...")
                 return True
     exec(fr"""
-#TICKTIMESCRIPT
-ClientboundSetTimePacket = JavaClass("net.minecraft.network.protocol.game.ClientboundSetTimePacket")
-System = JavaClass("java.lang.System")
-Math = JavaClass("java.lang.Math")
-prev = System.currentTimeMillis()
-BufferedWriter = JavaClass("java.io.BufferedWriter")
-FileWriter = JavaClass("java.io.FileWriter")
-path = System.getProperty("user.dir") + "\\minescript\\tick_time.txt"
+    #TICKTIMESCRIPT
+    # An MC-Tools script. DO NOT KILL
+    ClientboundSetTimePacket = JavaClass("net.minecraft.network.protocol.game.ClientboundSetTimePacket")
+    System = JavaClass("java.lang.System")
+    Math = JavaClass("java.lang.Math")
+    prev = System.currentTimeMillis()
+    BufferedWriter = JavaClass("java.io.BufferedWriter")
+    FileWriter = JavaClass("java.io.FileWriter")
+    path = System.getProperty("user.dir") + "\\minescript\\tick_time.txt"
+    chain = 0
 
-def save(data):
- writer = BufferedWriter(FileWriter(path, False))
- writer.write(str(data))
- writer.flush()
- writer.close()
+    def save(data):
+     global chain
+     chain = chain % 9
+     chain += 1
+     writer = BufferedWriter(FileWriter(path, False))
+     writer.write(str(chain) + str(data))
+     writer.flush()
+     writer.close()
 
-def on_clientbound_packet(event):
- global prev
- if isinstance(event.packet, ClientboundSetTimePacket):
-  now = System.currentTimeMillis()
-  tick_time = (now - prev) / 20000
-  try: save(tick_time)
-  except Exception as e: print(e)
-  prev = now
+    def on_clientbound_packet(event):
+     global prev
+     if isinstance(event.packet, ClientboundSetTimePacket):
+      now = System.currentTimeMillis()
+      tick_time = (now - prev) / 20000
+      try: save(tick_time)
+      except: pass
+      prev = now
 
 
-add_event_listener("clientbound_packet", on_clientbound_packet)
-""")
+    add_event_listener("clientbound_packet", on_clientbound_packet)
+    """)
     def monitor():
         global tick_time
+        global session
+        global _time_since_last_tick
+        last_session = session
+        last_session_time = perf_counter()
         while True:
             with lock:
                 with open(path,"r") as f:
-                    try: tick_time = float(f.read())
+                    try: 
+                        extracted = str(f.read())
+                        tick_time = float(extracted[1:])
+                        session = int(extracted[0])
                     except: pass
+                if session != last_session:
+                    last_session = session
+                    last_session_time = perf_counter()
+                _time_since_last_tick = perf_counter() - last_session_time
     Thread(target=monitor,daemon=True).start()
 _monitor_tps()
 
@@ -285,6 +301,12 @@ def get_tps():
     """
     return 1/tick_time
 
+def time_since_last_tick():
+    """
+    The estimated time since the last tick
+    """
+    return _time_since_last_tick
+
 def start_tick_monitor_and_wait():
     """
     Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
@@ -292,6 +314,35 @@ def start_tick_monitor_and_wait():
     """
     if _monitor_tps():
         sleep(1)
+
+def delay(func,args:tuple,by:int,threaded:bool=True):
+    """
+    Delay a function call by a given amount of server ticks
+    """
+    def _delay():
+        index = 0
+        while True:
+            if index >= by:
+                func(*args)
+            index += 1
+            sleep(get_tick_time())
+    if threaded:
+        Thread(target=_delay,daemon=True).start()
+    else:
+        _delay()
+
+def swap_to_hotbar(inv_slot:int=0,hotbar_slot:int=0):
+    """
+    Reimplements the functionality of player_inventory_slot_to_hotbar
+    """
+    exec(fr"""
+    ClickType = JavaClass("net.minecraft.world.inventory.ClickType")
+    BlockPos = JavaClass("net.minecraft.core.BlockPos")
+    Minecraft = JavaClass("net.minecraft.client.Minecraft")
+    mc = Minecraft.getInstance()
+    mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, {hotbar_slot}, {inv_slot}, ClickType.SWAP, mc.player)
+    mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, {inv_slot}, {hotbar_slot}, ClickType.SWAP, mc.player)
+    """)
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
