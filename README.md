@@ -66,7 +66,7 @@
 
 ### `flush_buffer_in_pyjinn(imports=(),leave=False)`
 - Execute all function calls buffered up
-- Runs in pyjinn, usually finishes in the same tick
+- Runs in pyjinn, usually finishes on the same frame
 - `Leave`: if true, disconnect after flush
 - `imports`: An iterable, of imports (`"import minescript"`). Needed if the functions in the buffer are not declared in pyjinn already
 
