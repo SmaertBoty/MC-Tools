@@ -104,6 +104,17 @@
 - Executes a command, and leaves in the same tick
 - `command`: the executed command
 
+### `remove_server_rescource_pack()`
+- Removes forced server rescource packs
+
+### `steal(filter:str=None)`
+- Steal all items from the currently open container
+- Can be filtered for namespaced:id-s (None for no filter)
+
+### `dump(filter:str=None)`
+- Dump all items from your inventory, the currently open container
+- Can be filtered for namespaced:id-s (None for no filter)
+
 ## Usage:
 ```py
 from mc_tools import *
@@ -119,4 +130,4 @@ Example:
 ```
 
 ## MORE TO COME IN THE FUTURE
-last updated on 11/03/2026
+last updated on 13/03/2026
