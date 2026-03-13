@@ -1,7 +1,7 @@
 import sys
 if "Pyjinn" in sys.version: sys.exit("Not pyjinnable")
 
-from system.lib.minescript import execute, job_info, version_info, log, world_info
+from system.lib.minescript import execute, job_info, version_info, log, world_info, container_get_items
 
 version = version_info().minescript
 ver = ""
@@ -72,7 +72,6 @@ def restore_screen(screen):
     """
     mc.setScreen(screen)
 
-
 def packet_use(x,y,z,direction="up",hand="main"):
     """"
     Do a right click on a block on the server side.
@@ -132,34 +131,6 @@ def packet_mine(x,y,z,direction="up",hand="main"):
     mc.getConnection().send(ServerboundSwingPacket(hand))
     mc.getConnection().send(ServerboundPlayerActionPacket(ServerboundPlayerActionPacket.Action.STOP_DESTROY_BLOCK, pos, direction))
     """)
-
-def flip_esp():
-    global esp
-    if esp:
-        esp = False
-        for job in job_info():
-            if len(job.command) > 1:
-                if job.command[1] == "#ESPRENDERER":
-                    execute(fr"\killjob {job.job_id}")
-    else:
-        esp = True
-        exec(fr"""
-        #ESPRENDERER
-        Minecraft = JavaClass("net.minecraft.client.Minecraft")
-        BlockPos = JavaClass("net.minecraft.core.BlockPos")
-        Gizmos = JavaClass("net.minecraft.gizmos.Gizmos")
-        GizmoStyle = JavaClass("net.minecraft.gizmos.GizmoStyle")
-        TextGizmo_Style = JavaClass("net.minecraft.gizmos.TextGizmo$Style")
-        Vec3 = JavaClass("net.minecraft.world.phys.Vec3")
-        ARGB = JavaClass("net.minecraft.util.ARGB")
-
-        def _on_render(event):
-         block_pos = BlockPos(0,-60,0)
-         color = ARGB.color(255,255,10,100)
-         Gizmos.cuboid(block_pos, GizmoStyle.stroke(color)).setAlwaysOnTop()
-
-        add_event_listener("render", _on_render)
-        """)
 
 def terminate():
     """
@@ -380,6 +351,51 @@ def execute_and_leave(command:str):
     mc.getConnection().close()
     execute("{command}")
     mc.player.connection.getConnection().disconnect(Component.translatable("multiplayer.disconnect.generic"))
+    """)
+
+def remove_server_rescource_pack():
+    """
+    Removes the server rescource pack
+    """
+    exec(r"""
+    Minecraft = JavaClass("net.minecraft.client.Minecraft")
+    mc = Minecraft.getInstance()
+    mc.clearDownloadedResourcePacks()
+    """)
+
+def steal(filter:str=None):
+    """
+    Steal all items from the currently open container.
+    Can be filtered for namespaced:id-s
+    """
+    exec(fr"""
+    Minecraft = JavaClass("net.minecraft.client.Minecraft")
+    mc = Minecraft.getInstance()
+    ClickType = JavaClass("net.minecraft.world.inventory.ClickType")
+    for item in container_get_items():
+     if item.item == "{filter}" or "{filter}" == "None":
+      mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, item.slot, 1, ClickType.QUICK_MOVE, mc.player)
+    """)
+
+def dump(filter:str=None):
+    """
+    Dump all items from your inventory, the currently open container.
+    Can be filtered for namespaced:id-s
+    """
+    exec(fr"""
+    Minecraft = JavaClass("net.minecraft.client.Minecraft")
+    mc = Minecraft.getInstance()
+    ClickType = JavaClass("net.minecraft.world.inventory.ClickType")
+    size = mc.screen.getMenu().getItems().size()
+    extra = mc.screen.getMenu().getItems().size() - 36
+    for slot in range(extra, size):
+     item = None
+     for _item in container_get_items(): 
+      if _item.slot == slot: 
+       item = _item
+     if item is None: continue
+     if item.item == "{filter}" or "{filter}" == "None":
+      mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, slot, 1, ClickType.QUICK_MOVE, mc.player)
     """)
 
 if __name__ == "__main__":
