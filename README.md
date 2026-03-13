@@ -55,7 +55,7 @@
 - Show chat
 - Excludes the input bar
 
-### `buffer(func:callable, arg:tuple)`
+### `buffer(func:callable, args:tuple)`
 - Buffer up a lot of function calls
 - `func`: a callable
 - `args`: all arguments as a tuple (or other iterable)
