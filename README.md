@@ -17,13 +17,13 @@
 ### `restore_screen(screen)`
 - Restore a static screen on the client, using a saved screen from `save_screen`
 
-### `packet_use(x:int,y:int,z:int,direction:str="up",hand:str="main")`
+### `packet_use(x:int, y:int, z:int, direction:str="up", hand:str="main")`
 - Do a right click on a block on the server side
 - `x, y, z`: all integers
 - `direction`: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
 - `hand`: "main" for main hand, "off" for off hand (OPTIONAL, DEFAULTS TO "main")
 
-### `packet_mine(x:int,y:int,z:int,direction:str="up",hand:str="main")`
+### `packet_mine(x:int, y:int, z:int, direction:str="up", hand:str="main")`
 - Mine a block on the server side (not instant!)
 - `x, y, z`: all integers
 - `direction`: up/down or NESW as string (example: "north") (OPTIONAL, DEFAULTS TO "up")
@@ -64,7 +64,7 @@
 - Execute all function calls buffered up
 - `Leave`: if true, disconnect after flush
 
-### `flush_buffer_in_pyjinn(imports:tuple=(),leave:bool=False)`
+### `flush_buffer_in_pyjinn(imports:tuple=(), leave:bool=False)`
 - Execute all function calls buffered up
 - Runs in pyjinn, usually finishes on the same frame
 - `Leave`: if true, disconnect after flush
@@ -87,7 +87,7 @@
 - Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
 - In case you accidentally killed the monitor, this is the function to restart it. Otherwise it should never be used
 
-### `delay(func:callable,args:tuple,by:int,threaded:bool=True,server:bool=True)`
+### `delay(func:callable, args:tuple, by:int, threaded:bool=True, server:bool=True)`
 - Delays a function call
 - `func`: a callable
 - `args`: all arguments as a tuple (or other iterable)
@@ -95,7 +95,7 @@
 - `threaded`: If True, the delay will happen on a new thread
 - `server`: If true, delay ticks will be in line with the servers ticks
 
-### `swap_to_hotbar(inv_slot:int,hotbar_slot:int)`
+### `swap_to_hotbar(inv_slot:int, hotbar_slot:int)`
 - Reimplements the functionality of `player_inventory_slot_to_hotbar()`
 - `inv_slot`: 9-35
 - `hotbar_slot`: 0-8
