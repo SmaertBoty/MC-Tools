@@ -112,7 +112,7 @@
 - Can be filtered for namespaced:id-s (None for no filter)
 
 ### `dump(filter:str=None)`
-- Dump all items from your inventory, the currently open container
+- Dump all items from your inventory, to the currently open container
 - Can be filtered for namespaced:id-s (None for no filter)
 
 ## Usage:
