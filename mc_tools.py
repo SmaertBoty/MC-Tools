@@ -210,7 +210,7 @@ def flush_buffer_in_pyjinn(imports:tuple=(),leave:bool=False):
             else:
                 out.append(arg)
         args = out
-        code += f"{func_name}({", ".join(args)})\n"
+        code += f"{func_name}({', '.join(args)})\n"
     code += """mc.player.connection.getConnection().disconnect(Component.translatable("multiplayer.disconnect.generic"))""" if leave else ""
     exec(fr"""
     {code}
