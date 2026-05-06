@@ -115,9 +115,27 @@
 - Dump all items from your inventory, to the currently open container
 - Can be filtered for namespaced:id-s (None for no filter)
 
+### `unlock_mouse()`
+- Unlock the mouse, allowing it to be moved freely
+- Note: this will close the currently open gui on the client side
+
+### `lock_mouse()`
+- Lock the mouse, allowing the camera to be rotated (Other guis may still unlock the mouse)
+
+### `get_minescript_version_index()`
+- Returns the version index of minescript
+
+### `set_global_variable(key:str,dat:any)`
+- Set a global variable
+- Global variables can be accessed by any process (even pyjinn), and persist until a restart
+
+### `get_global_variable(key:str)`
+- Get a global variable
+- Global variables can be accessed by any process (even pyjinn), and persist until a restart
+
 ## Usage:
 ```py
-from mc_tools import *
+import mc_tools as mt
 ```
 Note: You can run a function, without having to make a burner script, by appending the function name, and argument when starting the script
 
@@ -129,6 +147,7 @@ packet_use(0,0,0)
 dump()
 # mc_tools is auto imported (*)
 ```
+To use quotes (`"` and `'`) use `/$` and `\$` (respectively)
 
 ## MORE TO COME IN THE FUTURE
-last updated on 13/03/2026
+last updated on 06/05/2026
