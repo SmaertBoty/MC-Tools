@@ -121,6 +121,7 @@
 
 ### `lock_mouse()`
 - Lock the mouse, allowing the camera to be rotated (Other guis may still unlock the mouse)
+- Note: this will close any open guis, if it was called while the mouse was unlocked
 
 ### `get_minescript_version_index()`
 - Returns the version index of minescript
