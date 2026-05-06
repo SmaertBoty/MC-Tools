@@ -1,7 +1,7 @@
 import sys
 if "Pyjinn" in sys.version: sys.exit("Not pyjinnable")
 
-from system.lib.minescript import execute, job_info, version_info, log, world_info, container_get_items
+from system.lib.minescript import execute, job_info, version_info, log
 
 version = version_info().minescript
 ver = ""
@@ -11,7 +11,7 @@ for char in version:
 
 if int(ver) < 5011: sys.exit("Please update to 5.0b11")
 
-from system.lib.java import JavaClass
+from system.lib.java import eval_pyjinn_script as eps, JavaClass
 from time import perf_counter, sleep
 from pathlib import Path
 from threading import Thread, Lock
@@ -31,6 +31,41 @@ path = Path(__file__).parent.resolve() / "tick_time.txt"
 
 def _log(s):
     log(f"[MCT] {s}")
+
+script = eps(
+r"""
+if "mc_tools" not in __script__.vars["game"]:
+    __script__.vars["game"]["mc_tools"] = {}
+
+def sgv(key,dat):
+    __script__.vars["game"]["mc_tools"][key] = dat
+
+def ggv(key):
+    try: return __script__.vars["game"]["mc_tools"][key]
+    except: return None
+""")
+sgv = script.get("sgv")
+ggv = script.get("ggv")
+
+def get_minescript_version_index():
+    """
+    Returns the version index of minescript
+    """
+    return int(ver)
+
+def set_global_variable(key:str,dat:any):
+    """
+    Set a global variable
+    Global variables can be accessed by any process, and presist until a restart
+    """
+    sgv(key,dat)
+
+def get_global_variable(key:str):
+    """
+    Get a global variable
+    Global variables can be accessed by any process, and presist until a restart
+    """
+    return ggv(key)
 
 _exec = exec
 def exec(code):
@@ -80,9 +115,11 @@ def packet_use(x,y,z,direction="up",hand="main"):
     BlockPos = JavaClass("net.minecraft.core.BlockPos")
     Minecraft = JavaClass("net.minecraft.client.Minecraft")
     mc = Minecraft.getInstance()
-    ServerboundPlayerActionPacket = JavaClass("net.minecraft.network.protocol.game.ServerboundPlayerActionPacket")
+    ServerboundUseItemOnPacket = JavaClass("net.minecraft.network.protocol.game.ServerboundUseItemOnPacket")
     dir = JavaClass("net.minecraft.core.Direction")
     InteractionHand = JavaClass("net.minecraft.world.InteractionHand")
+    HitResult = JavaClass("net.minecraft.world.phys.BlockHitResult")
+    Vec3 = JavaClass("net.minecraft.world.phys.Vec3")
     x = {x}
     y = {y}
     z = {z}
@@ -174,11 +211,11 @@ def hide_chat():
     """
     mc.options.chatScale().set(0.0)
 
-def show_chat():
+def show_chat(scale=None):
     """
     Show the chat
     """
-    mc.options.chatScale().set(chat_scale)
+    mc.options.chatScale().set(chat_scale if not scale else scale)
 
 def buffer(func,args:tuple):
     """
@@ -210,7 +247,7 @@ def flush_buffer_in_pyjinn(imports:tuple=(),leave:bool=False):
             else:
                 out.append(arg)
         args = out
-        code += f"{func_name}({', '.join(args)})\n"
+        code += f"{func_name}({", ".join(args)})\n"
     code += """mc.player.connection.getConnection().disconnect(Component.translatable("multiplayer.disconnect.generic"))""" if leave else ""
     exec(fr"""
     {code}
@@ -232,16 +269,17 @@ def _monitor_tps():
         last_session_time = perf_counter()
         while True:
             with lock:
-                with open(path,"r") as f:
-                    try: 
-                        extracted = str(f.read())
+                try:
+                    extracted = get_global_variable("ticktimedata")
+                    if extracted:
                         tick_time = float(extracted[1:])
                         session = int(extracted[0])
-                    except: pass
-                if session != last_session:
-                    last_session = session
-                    last_session_time = perf_counter()
-                _time_since_last_tick = perf_counter() - last_session_time
+                    if session != last_session:
+                        last_session = session
+                        last_session_time = perf_counter()
+                    _time_since_last_tick = perf_counter() - last_session_time
+                except: pass
+    
     Thread(target=monitor,daemon=True).start()
     for job in job_info():
         if len(job.command) > 1:
@@ -259,15 +297,19 @@ def _monitor_tps():
     FileWriter = JavaClass("java.io.FileWriter")
     path = System.getProperty("user.dir") + "\\minescript\\tick_time.txt"
     chain = 0
+    
+    if "mc_tools" not in __script__.vars["game"]:
+     __script__.vars["game"]["mc_tools"] = {"{"}{"}"}
 
     def save(data):
      global chain
      chain = chain % 9
      chain += 1
-     writer = BufferedWriter(FileWriter(path, False))
-     writer.write(str(chain) + str(data))
-     writer.flush()
-     writer.close()
+     #writer = BufferedWriter(FileWriter(path, False))
+     #writer.write(str(chain) + str(data))
+     #writer.flush()
+     #writer.close()
+     __script__.vars["game"]["mc_tools"]["ticktimedata"] = str(chain) + str(data)
 
     def on_clientbound_packet(event):
      global prev
@@ -282,6 +324,52 @@ def _monitor_tps():
     add_event_listener("clientbound_packet", on_clientbound_packet)
     """)
 _monitor_tps()
+
+def _mouse_unlocker():
+    for job in job_info():
+        if len(job.command) > 1:
+            if job.command[1] == "#MOUSEUNLOCKSCRIPT":
+                _log("Joining already existing mouse unlocker...")
+                return True
+    exec(fr"""
+    #MOUSEUNLOCKSCRIPT
+    # An MC-Tools script. DO NOT KILL
+    mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
+    HudRenderCallback = JavaClass("net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback")
+    ARGB = JavaClass("net.minecraft.util.ARGB")
+    Component = JavaClass("net.minecraft.network.chat.Component")
+
+    ContainerScreen = JavaClass("net.minecraft.client.gui.screens.inventory.ContainerScreen")
+    ChestMenu = JavaClass("net.minecraft.world.inventory.ChestMenu")
+    Inventory = JavaClass("net.minecraft.world.entity.player.Inventory")
+    EntityEquipment = JavaClass("net.minecraft.world.entity.EntityEquipment")
+
+    if "mc_tools" not in __script__.vars["game"]:
+     __script__.vars["game"]["mc_tools"] = {"{"}{"}"}
+    __script__.vars["game"]["mc_tools"]["unlock_mouse"] = False
+
+    inv = Inventory(mc.player, EntityEquipment())
+    CustomScreen = ContainerScreen(ChestMenu.oneRow(0, inv), inv, Component.literal("Mouse Unlocked"))
+
+    first = False
+
+    def handle_render(ctx,delta):
+     global first
+     matrices = ctx.pose()
+     if __script__.vars["game"]["mc_tools"]["unlock_mouse"]:
+      mc.setScreen(CustomScreen)
+      delta = delta.getRealtimeDeltaTicks()
+      matrices.pushMatrix()
+      matrices.translate(1000,1000)
+      first = True
+     else:
+      if first: mc.player.closeContainer() ; first = False
+      matrices.pushMatrix()
+      matrices.translate(0,0)
+
+    HudRenderCallback.EVENT.register(HudRenderCallback(ManagedCallback(handle_render)))
+    """)
+_mouse_unlocker()
 
 def get_tick_time():
     """
@@ -398,7 +486,21 @@ def dump(filter:str=None):
       mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, slot, 1, ClickType.QUICK_MOVE, mc.player)
     """)
 
+def unlock_mouse():
+    """
+    Unlock the mouse, allowing it to be moved freely
+    Note: this will close the currently open gui on the client side
+    """
+    exec("""x=0\n__script__.vars["game"]["mc_tools"]["unlock_mouse"] = True""")
+
+def lock_mouse():
+    """
+    Lock the mouse, allowing the camera to be rotated
+    """
+    exec("""x=0\n__script__.vars["game"]["mc_tools"]["unlock_mouse"] = False""")
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        args = " ".join(sys.argv[1:]).replace(r"\n","\n")
+        args = " ".join(sys.argv[1:]).replace(r"\n","\n").replace(r"\$","'").replace("/$",'"')
         _exec(f"""from mc_tools import *\n{args}""")
