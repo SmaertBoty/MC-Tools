@@ -127,11 +127,11 @@
 
 ### `set_global_variable(key:str,dat:any)`
 - Set a global variable
-- Global variables can be accessed by any process (even pyjinn), and persist until a restart
+- Global variables can be accessed by any process (even pyjinn), and persist until a restart of the game
 
 ### `get_global_variable(key:str)`
 - Get a global variable
-- Global variables can be accessed by any process (even pyjinn), and persist until a restart
+- Global variables can be accessed by any process (even pyjinn), and persist until a restart of the game
 
 ## Usage:
 ```py
