@@ -239,9 +239,9 @@ def show_chat(scale=None):
     Show the chat
     """
     eps(
-r"""
+fr"""
 mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
-mc.options.chatScale().set(chat_scale if not scale else scale)
+mc.options.chatScale().set({chat_scale} if not {scale} else {scale})
 """)
 
 def buffer(func,args:tuple):
