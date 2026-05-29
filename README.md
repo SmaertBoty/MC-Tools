@@ -134,6 +134,19 @@
 - Get a global variable
 - Global variables can be accessed by any process (even pyjinn), and persist until a restart of the game
 
+### `join_server(ip:str,delay:float=0.0)`
+- Automatically exits the current server, and joins another
+- Note: a positive delay will result in the game freezing for that long. Do not worry, it will not crash
+
+### `get_tablist() -> list`
+- Returns a list of players and their latency from the tablist
+- `[TablistDisplayName, Latency]`
+
+### `eps(code:str)`
+- Executes some pyjinn code
+- Non blocking and very fast, but you cannot have returns
+- Code cannot contain >'< (single quote)
+
 ## Usage:
 ```py
 import mc_tools as mt
@@ -151,4 +164,4 @@ dump()
 To use quotes (`"` and `'`) use `/$` and `\$` (respectively)
 
 ## MORE TO COME IN THE FUTURE
-last updated on 06/05/2026
+last updated on 29/05/2026
