@@ -83,10 +83,6 @@
 - The estimated time since the last server update
 - Normal times are ~1 second, at 20 tps
 
-### `start_tick_monitor_and_wait()`
-- Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
-- In case you accidentally killed the monitor, this is the function to restart it. Otherwise it should never be used
-
 ### `delay(func:callable, args:tuple, by:int, threaded:bool=True, server:bool=True)`
 - Delays a function call
 - `func`: a callable
