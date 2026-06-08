@@ -4,7 +4,7 @@ if "Pyjinn" in sys.version: sys.exit("Not pyjinnable")
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         args = " ".join(sys.argv[1:]).replace(r"\n","\n").replace(r"\$","'").replace("/$",'"')
-        exec(f"""from mc_tools import *\n{args}""")
+        exec(f"""from minescript import EventQueue\nEventQueue().register_world_listener()\nfrom mc_tools import *\n{args}""")
         sys.exit(1)
 
 from system.lib.minescript import execute, job_info, version_info, log
@@ -17,10 +17,12 @@ for char in version:
 
 if int(ver) < 5011: sys.exit("Please update to 5.0b11")
 
-from system.lib.java import eval_pyjinn_script as eps, JavaClass
+from system.lib.java import eval_pyjinn_script as _eps, JavaClass
 from time import perf_counter, sleep
 from pathlib import Path
 from threading import Thread, Lock
+import os
+from typing import Any
 
 mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
 
@@ -31,13 +33,17 @@ tick_time = -1
 session = 0
 _time_since_last_tick = 0
 lock = Lock()
+cmd_history = Path(os.getcwd()).resolve() / "command_history.txt"
 
 path = Path(__file__).parent.resolve() / "tick_time.txt"
 
 def _log(s):
     log(f"[MCT] {s}")
 
-script = eps(
+def _raise(type,msg):
+    raise eval(type)(msg)
+
+script = _eps(
 r"""
 if "mc_tools" not in __script__.vars["game"]:
     __script__.vars["game"]["mc_tools"] = {}
@@ -46,26 +52,26 @@ def sgv(key,dat):
     __script__.vars["game"]["mc_tools"][key] = dat
 
 def ggv(key):
-    try: return __script__.vars["game"]["mc_tools"][key]
-    except: return None
+    return __script__.vars["game"]["mc_tools"][key]
 """)
+
 sgv = script.get("sgv")
 ggv = script.get("ggv")
 
-def get_minescript_version_index():
+def get_minescript_version_index() -> int:
     """
     Returns the version index of minescript
     """
     return int(ver)
 
-def set_global_variable(key:str,dat:any):
+def set_global_variable(key:str,dat:Any):
     """
     Set a global variable
     Global variables can be accessed by any process, and persist until a restart
     """
     sgv(key,dat)
 
-def get_global_variable(key:str):
+def get_global_variable(key:str) -> Any:
     """
     Get a global variable
     Global variables can be accessed by any process, and persist until a restart
@@ -129,6 +135,7 @@ fr"""
 BlockPos = JavaClass("net.minecraft.core.BlockPos")
 mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
 ServerboundUseItemOnPacket = JavaClass("net.minecraft.network.protocol.game.ServerboundUseItemOnPacket")
+ServerboundSwingPacket = JavaClass("net.minecraft.network.protocol.game.ServerboundSwingPacket")
 dir = JavaClass("net.minecraft.core.Direction")
 InteractionHand = JavaClass("net.minecraft.world.InteractionHand")
 HitResult = JavaClass("net.minecraft.world.phys.BlockHitResult")
@@ -149,6 +156,7 @@ if hand.lower().strip() == "main": hand = InteractionHand.MAIN_HAND
 elif hand.lower().strip() == "off": hand = InteractionHand.SECONDARY_HAND
 hit = HitResult(Vec3(pos.getX(), pos.getY(), pos.getZ()), direction, pos, False)
 mc.getConnection().send(ServerboundUseItemOnPacket(hand, hit, 0))
+mc.getConnection().send(ServerboundSwingPacket(hand))
 """)
 
 def packet_mine(x,y,z,direction="up",hand="main"):
@@ -193,14 +201,19 @@ Runtime = JavaClass("java.lang.Runtime")
 Runtime.getRuntime().halt(1)
 """)
 
-def crash():
+def crash(reason:str="Intentional crash"):
     """
     Same as if you were to normally crash, or by holding down F3+C
     """
     eps(
-r"""
-System = JavaClass("java.lang.System")
-System.exit(1)
+fr"""
+mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
+Throwable = JavaClass("java.lang.Throwable")
+CrashReport = JavaClass("net.minecraft.CrashReport")
+def crash():
+    mc.delayCrash(CrashReport("Controlled crash from MC-Tools",Throwable("{reason}")))
+    mc.handleDelayedCrash()
+mc.execute(ManagedCallback(crash))
 """)
 
 def disconnect():
@@ -248,20 +261,19 @@ def buffer(func,args:tuple):
     """
     Buffer up function calls
     """
-    global buffer_list
     buffer_list.append((func,args))
 
-def flush_buffer(leave:bool=False):
+def flush_buffer(leave:bool=False) -> list:
     """
     Send all function calls in the buffer, all at once
     """
-    for func, args in buffer_list:
-        func(*args)
+    out = [func(*args) for func, args in buffer_list]
     if leave: disconnect()
+    return out
 
 def flush_buffer_in_pyjinn(imports:tuple=(),leave:bool=False):
     """
-    Send all function calls in the buffer, all at once (ran in pyjinn, usually finishes in the same tick, if the buffer isnt too too large)
+    Send all function calls in the buffer, all at once (ran in pyjinn, finishes in the same frame)
     """
     code = "\n".join(imports) + "\n" + """mc = JavaClass("net.minecraft.client.Minecraft").getInstance()\nComponent = JavaClass("net.minecraft.network.chat.Component")\nmc.getConnection().close()\n""" if leave else ""
     for func, args in buffer_list:
@@ -284,7 +296,6 @@ def clear_buffer():
     """
     Clears out all buffered function calls
     """
-    global buffer_list
     buffer_list.clear()
 
 def _monitor_tps():
@@ -321,21 +332,14 @@ ClientboundSetTimePacket = JavaClass("net.minecraft.network.protocol.game.Client
 System = JavaClass("java.lang.System")
 Math = JavaClass("java.lang.Math")
 prev = System.currentTimeMillis()
-BufferedWriter = JavaClass("java.io.BufferedWriter")
-FileWriter = JavaClass("java.io.FileWriter")
 path = System.getProperty("user.dir") + "\\minescript\\tick_time.txt"
 chain = 0
-
 if "mc_tools" not in __script__.vars["game"]:
     __script__.vars["game"]["mc_tools"] = {"{"}{"}"}
 def save(data):
     global chain
     chain = chain % 9
     chain += 1
-    #writer = BufferedWriter(FileWriter(path, False))
-    #writer.write(str(chain) + str(data))
-    #writer.flush()
-    #writer.close()
     __script__.vars["game"]["mc_tools"]["ticktimedata"] = str(chain) + str(data)
 def on_clientbound_packet(event):
     global prev
@@ -349,73 +353,25 @@ add_event_listener("clientbound_packet", on_clientbound_packet)
 """)
 _monitor_tps()
 
-def _mouse_unlocker():
-    for job in job_info():
-        if len(job.command) > 1:
-            if job.command[1] == "#MOUSEUNLOCKSCRIPT":
-                _log("Joining already existing mouse unlocker...")
-                return True
-    eps(fr"""
-#MOUSEUNLOCKSCRIPT
-# An MC-Tools script. DO NOT KILL
-mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
-HudRenderCallback = JavaClass("net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback")
-ARGB = JavaClass("net.minecraft.util.ARGB")
-Component = JavaClass("net.minecraft.network.chat.Component")
-ContainerScreen = JavaClass("net.minecraft.client.gui.screens.inventory.ContainerScreen")
-ChestMenu = JavaClass("net.minecraft.world.inventory.ChestMenu")
-Inventory = JavaClass("net.minecraft.world.entity.player.Inventory")
-EntityEquipment = JavaClass("net.minecraft.world.entity.EntityEquipment")
-if "mc_tools" not in __script__.vars["game"]:
-    __script__.vars["game"]["mc_tools"] = {"{"}{"}"}
-__script__.vars["game"]["mc_tools"]["unlock_mouse"] = False
-inv = Inventory(mc.player, EntityEquipment())
-CustomScreen = ContainerScreen(ChestMenu.oneRow(0, inv), inv, Component.literal("Mouse Unlocked"))
-first = False
-def handle_render(ctx,delta):
-    global first
-    matrices = ctx.pose()
-    if __script__.vars["game"]["mc_tools"]["unlock_mouse"]:
-        mc.setScreen(CustomScreen)
-        delta = delta.getRealtimeDeltaTicks()
-        matrices.pushMatrix()
-        matrices.translate(1000,1000)
-        first = True
-    else:
-        if first: mc.player.closeContainer() ; first = False
-        matrices.pushMatrix()
-        matrices.translate(0,0)
-HudRenderCallback.EVENT.register(HudRenderCallback(ManagedCallback(handle_render)))
-""")
-_mouse_unlocker()
-
-def get_tick_time():
+def get_tick_time() -> float:
     """
     A really strong estimate on the tick time
     """
     return tick_time
 
-def get_tps():
+def get_tps() -> float:
     """
     A really strong estimate on the tps
     """
     return 1/tick_time
 
-def time_since_last_tick():
+def time_since_last_tick() -> float:
     """
     The estimated time since the last tick
     """
     return _time_since_last_tick
 
-def start_tick_monitor_and_wait():
-    """
-    Starts the tick monitor, and waits for values to flow in. Ususally this isnt needed, since starting up this script also starts the monitor.
-    In case you accidentally killed the monitor, this is the function to restart it.
-    """
-    if _monitor_tps():
-        sleep(1)
-
-def delay(func,args:tuple,by:int,threaded:bool=True,server:bool=True):
+def delay(func,args:tuple,by:int,threaded:bool=True,server:bool=True) -> Any:
     """
     Delay a function call by a given amount of ticks
     """
@@ -423,8 +379,7 @@ def delay(func,args:tuple,by:int,threaded:bool=True,server:bool=True):
         index = 0
         while True:
             if index >= by:
-                func(*args)
-                return
+                return func(*args)
             index += 1
             sleep(get_tick_time() if server and get_tick_time() > 0 else 0.05)
     if threaded:
@@ -439,7 +394,6 @@ def swap_to_hotbar(inv_slot:int,hotbar_slot:int):
     eps(
 fr"""
 ClickType = JavaClass("net.minecraft.world.inventory.ClickType")
-BlockPos = JavaClass("net.minecraft.core.BlockPos")
 mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
 mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, {hotbar_slot}, {inv_slot}, ClickType.SWAP, mc.player)
 mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, {inv_slot}, {hotbar_slot}, ClickType.SWAP, mc.player)
@@ -503,15 +457,61 @@ for slot in range(extra, size):
         mc.gameMode.handleInventoryMouseClick(mc.player.containerMenu.containerId, slot, 1, ClickType.QUICK_MOVE, mc.player)
 """)
 
-def unlock_mouse():
+def _mouse_unlocker():
+    for job in job_info():
+        if len(job.command) > 1:
+            if job.command[1] == "#MOUSEUNLOCKSCRIPT":
+                _log("Joining already existing mouse unlocker...")
+                return True
+    eps(fr"""
+#MOUSEUNLOCKSCRIPT
+# An MC-Tools script. DO NOT KILL
+mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
+HudRenderCallback = JavaClass("net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback")
+ARGB = JavaClass("net.minecraft.util.ARGB")
+Component = JavaClass("net.minecraft.network.chat.Component")
+ContainerScreen = JavaClass("net.minecraft.client.gui.screens.inventory.ContainerScreen")
+ChestMenu = JavaClass("net.minecraft.world.inventory.ChestMenu")
+Inventory = JavaClass("net.minecraft.world.entity.player.Inventory")
+EntityEquipment = JavaClass("net.minecraft.world.entity.EntityEquipment")
+if "mc_tools" not in __script__.vars["game"]:
+    __script__.vars["game"]["mc_tools"] = {"{"}{"}"}
+__script__.vars["game"]["mc_tools"]["unlock_mouse"] = False
+inv = Inventory(mc.player, EntityEquipment())
+CustomScreen = ContainerScreen(ChestMenu.oneRow(0, inv), inv, Component.literal("Mouse Unlocked"))
+first = False
+def handle_render(ctx,delta):
+    global first
+    matrices = ctx.pose()
+    if __script__.vars["game"]["mc_tools"]["unlock_mouse"]:
+        if __script__.vars["game"]["mc_tools"]["unlock_mouse"] == "Block":
+            mc.setScreen(CustomScreen)
+            delta = delta.getRealtimeDeltaTicks()
+            matrices.pushMatrix()
+            matrices.translate(10000,10000)
+        elif __script__.vars["game"]["mc_tools"]["unlock_mouse"] == "Non":
+            mc.mouseHandler.releaseMouse()
+        first = True
+    else:
+        if first:
+            mc.player.closeContainer()
+            mc.mouseHandler.grabMouse()
+            first = False
+        matrices.pushMatrix()
+        matrices.translate(0,0)
+HudRenderCallback.EVENT.register(HudRenderCallback(ManagedCallback(handle_render)))
+""")
+_mouse_unlocker()
+
+def unlock_mouse(blocking:bool=True):
     """
     Unlock the mouse, allowing it to be moved freely
-    Note: this will close the currently open gui on the client side
+    If blocking is True, it will attempt to block interaction with the game
     """
     eps(
-r"""
+fr"""
 x=0
-__script__.vars["game"]["mc_tools"]["unlock_mouse"] = True
+__script__.vars["game"]["mc_tools"]["unlock_mouse"] = "{"Non" if not blocking else "Block"}"
 """)
 
 def lock_mouse():
@@ -540,10 +540,9 @@ Component = JavaClass("net.minecraft.network.chat.Component")
 TitleScreen = JavaClass("net.minecraft.client.gui.screens.TitleScreen")
 JoinMultiplayerScreen = JavaClass("net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen")
 Thread = JavaClass("java.lang.Thread")
-
 def connect():
     if {delay} > 0:
-        Thread.sleep({delay}*1000)
+        Thread.sleep(int({delay}*1000))
     ConnectScreen.startConnecting(
     JoinMultiplayerScreen(TitleScreen()),
     mc,
@@ -552,16 +551,14 @@ def connect():
     False,
     None)
     sys.exit(1)
-
 def world(event):
     if event.connected: return
     mc.execute(ManagedCallback(connect))
-
 add_event_listener("world",world)
 mc.player.connection.getConnection().disconnect(Component.translatable("multiplayer.disconnect.generic"))
 """)
 
-def get_tablist():
+def get_tablist() -> list:
     eps(
 fr"""
 mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
@@ -577,3 +574,84 @@ __script__.vars["game"]["mc_tools"]["tablist"] = out
     sleep(0.01)
     return get_global_variable("tablist")
 
+def freeze(_for:float):
+    """
+    Freezes the game for a set amount of time
+    Same as R-clicikng the window border
+    Note: Will pause any and all pyjinn processes for the duration of the freeze
+    """
+    eps(
+fr"""
+Thread = JavaClass("java.lang.Thread")
+Thread.sleep({_for}*1000)
+""")
+
+def _block_packet_script():
+    for job in job_info():
+        if len(job.command) > 1:
+            if job.command[1] == "#BLOCKPACKETSCRIPT":
+                _log("Joining already existing packet blocker...")
+                return True
+    eps(
+fr"""
+#BLOCKPACKETSCRIPT
+# An MC-Tools script. DO NOT KILL
+mappings = JavaClass("net.minescript.common.Minescript").mappingsLoader.get()
+if "blocked_packets" not in __script__.vars["game"]["mc_tools"]:
+    __script__.vars["game"]["mc_tools"]["blocked_packets"] = []
+def c2s(event):
+    _class = str(event.packet.getClass())
+    p = mappings.getPrettyClassName(_class.split(" ")[-1]).split(".")[-1]
+    if p in __script__.vars["game"]["mc_tools"]["blocked_packets"]:
+        event.cancel()
+add_event_listener("serverbound_packet",c2s)
+""")
+_block_packet_script()
+
+def block_packet(packet:str):
+    """
+    Intercepts a packet, so that it never reaches the server
+    """
+    eps(
+fr"""
+if "blocked_packets" not in __script__.vars["game"]["mc_tools"]:
+    __script__.vars["game"]["mc_tools"]["blocked_packets"] = []
+__script__.vars["game"]["mc_tools"]["blocked_packets"].append("{packet}")
+""")
+
+def unblock_packet(packet:str):
+    """
+    Stops intercepting a specific packet
+    """
+    eps(
+fr"""
+if "blocked_packets" not in __script__.vars["game"]["mc_tools"]:
+    __script__.vars["game"]["mc_tools"]["blocked_packets"] = []
+[__script__.vars["game"]["mc_tools"]["blocked_packets"].pop(i) for i in range(len(__script__.vars["game"]["mc_tools"]["blocked_packets"])) if __script__.vars["game"]["mc_tools"]["blocked_packets"][i] == "{packet}"]
+""")
+
+def get_fps() -> int:
+    """
+    Returns the current fps of the game
+    """
+    return mc.getFps()
+
+def show_toast(title:str,message:str):
+    """
+    Display a toast!
+    """
+    eps(
+fr"""
+mc = JavaClass("net.minecraft.client.Minecraft").getInstance()
+Component = JavaClass("net.minecraft.network.chat.Component")
+ToastManager = JavaClass("net.minecraft.client.gui.components.toasts.ToastManager")
+SystemToast = JavaClass("net.minecraft.client.gui.components.toasts.SystemToast")
+mc.getToastManager().addToast(SystemToast.multiline(mc, SystemToast.SystemToastId.PERIODIC_NOTIFICATION, Component.literal("{title}"), Component.literal("{message}")))
+""")
+
+def batch_java_calls(*code:str):
+    """
+    Batch up many java calls into one
+    """
+    raise NotImplementedError("batch_java_calls")
+    pass
