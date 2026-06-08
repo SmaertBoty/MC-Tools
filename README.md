@@ -115,13 +115,12 @@
 - Dump all items from your inventory, to the currently open container
 - Can be filtered for namespaced:id-s (None for no filter)
 
-### `unlock_mouse()`
+### `unlock_mouse(blocking:bool=True)`
 - Unlock the mouse, allowing it to be moved freely
-- Note: this will close the currently open gui on the client side
+- If blocking is True, this will attempt to block inputs
 
 ### `lock_mouse()`
 - Lock the mouse, allowing the camera to be rotated (Other guis may still unlock the mouse)
-- Note: this will close any open guis, if it was called while the mouse was unlocked
 
 ### `get_minescript_version_index()`
 - Returns the version index of minescript
@@ -146,6 +145,23 @@
 - Executes some pyjinn code
 - Non blocking and very fast, but you cannot have returns
 - Code cannot contain >'< (single quote)
+
+### `freeze(_for:float)`
+- Freezes the game for a set amount of time
+- Same as R-clicikng the window border
+- Note: Will pause any and all pyjinn processes for the duration of the freeze
+
+### `block_packet(packet:str)`
+- Block an outgoing packet by name
+
+### `unblock_packet(packet:str)`
+- Stop blocking an outgoing packet by name
+
+### `get_fps() -> int`
+- Returns the fps of the game
+
+### `show_toast(title:str,message:str)`
+- Display a toast!
 
 ## Usage:
 ```py
